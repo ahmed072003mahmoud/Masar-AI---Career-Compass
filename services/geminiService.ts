@@ -1,8 +1,10 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
-import { SelfAwarenessData, MarketData, CareerSuggestion, MarketAnalysisResult, GeneratedPlanData, ResumeAnalysisResult } from "../types";
+import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
+import { SelfAwarenessData, MarketData, CareerSuggestion, MarketAnalysisResult, GeneratedPlanData, ResumeAnalysisResult, JobListing } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const MODEL_NAME = "gemini-3-flash-preview";
 
 export interface JobDetailsResponse {
   description: string;
@@ -50,10 +52,100 @@ const repairJson = (jsonString: string): string => {
   }
 };
 
+// --- MOCK DATA FOR ADZUNA FALLBACK ---
+const MOCK_JOBS: JobListing[] = [
+  { id: '1', title: 'Senior Software Engineer', company: { display_name: 'Tech Solutions Co.' }, location: { display_name: 'الرياض' }, description: 'نبحث عن مطور برمجيات خبير في React و Node.js...', redirect_url: '#', created: new Date().toISOString(), salary_min: 15000, salary_max: 22000 },
+  { id: '2', title: 'Marketing Manager', company: { display_name: 'Creative Agency' }, location: { display_name: 'جدة' }, description: 'قيادة فريق التسويق الرقمي وبناء استراتيجيات النمو...', redirect_url: '#', created: new Date().toISOString(), salary_min: 12000, salary_max: 18000 },
+  { id: '3', title: 'Data Scientist', company: { display_name: 'DataCorp' }, location: { display_name: 'الدمام' }, description: 'تحليل البيانات الكبيرة وبناء نماذج تعلم الآلة...', redirect_url: '#', created: new Date().toISOString(), salary_min: 18000, salary_max: 25000 },
+  { id: '4', title: 'Project Manager', company: { display_name: 'BuildIt' }, location: { display_name: 'الرياض' }, description: 'إدارة المشاريع التقنية وضمان التسليم في الوقت المحدد...', redirect_url: '#', created: new Date().toISOString(), salary_min: 20000, salary_max: 30000 },
+];
+
+// Helper to fetch Adzuna
+async function fetchAdzunaJobs(what: string, where: string): Promise<JobListing[]> {
+  // Use process.env instead of import.meta.env to avoid TS errors
+  const APP_ID = process.env.VITE_ADZUNA_APP_ID;
+  const APP_KEY = process.env.VITE_ADZUNA_APP_KEY;
+  const country = 'sa'; // Default to Saudi Arabia
+
+  // If keys are missing, return mock data to ensure app functionality
+  if (!APP_ID || !APP_KEY) {
+    console.warn("Adzuna API credentials missing. Using mock data.");
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Filter mock data basically
+    return MOCK_JOBS.filter(j => 
+      j.title.toLowerCase().includes(what.toLowerCase()) || 
+      j.location.display_name.toLowerCase().includes(where.toLowerCase())
+    );
+  }
+
+  try {
+     const response = await fetch(`https://api.adzuna.com/v1/api/jobs/${country}/search/1?app_id=${APP_ID}&app_key=${APP_KEY}&results_per_page=10&what=${encodeURIComponent(what)}&where=${encodeURIComponent(where)}&content-type=application/json`);
+     if (!response.ok) throw new Error("API call failed");
+     const data = await response.json();
+     return data.results || [];
+  } catch (e) {
+     console.error("Adzuna API Error:", e);
+     return MOCK_JOBS; // Fallback on error
+  }
+}
+
+// Tool Definition for Function Calling
+const adzunaToolDeclaration: FunctionDeclaration = {
+  name: "search_adzuna_jobs",
+  description: "Search for real-time job listings using Adzuna API. Use this when the user asks for open positions, vacancies, or job opportunities.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      what: { type: Type.STRING, description: "Job title, keywords, or company name (e.g. 'Software Engineer', 'Aramco')" },
+      where: { type: Type.STRING, description: "Location (city or country), default to 'Saudi Arabia' if not specified." }
+    },
+    required: ["what"]
+  }
+};
+
+export const searchJobsSmart = async (userQuery: string): Promise<{ text: string, jobs?: JobListing[] }> => {
+  try {
+    const chat = ai.chats.create({
+      model: MODEL_NAME,
+      config: {
+        tools: [{ functionDeclarations: [adzunaToolDeclaration] }],
+        systemInstruction: "You are a helpful career assistant. When asked about jobs, use the search_adzuna_jobs tool. If the user doesn't specify location, infer it or default to Saudi Arabia. After getting results, summarize the top 3 opportunities briefly in Arabic. If no tool is needed, just answer normally."
+      }
+    });
+
+    const result = await chat.sendMessage({ message: userQuery });
+    const call = result.functionCalls?.[0];
+
+    if (call && call.name === "search_adzuna_jobs") {
+       const { what, where } = call.args as any;
+       const jobs = await fetchAdzunaJobs(what || '', where || 'sa');
+       
+       // Send result back to model to summarize
+       const toolResponse = await chat.sendMessage({
+         message: [{
+           functionResponse: {
+             name: call.name,
+             response: { result: jobs.slice(0, 5) },
+             id: call.id
+           }
+         }]
+       });
+       
+       return { text: toolResponse.text || "وجدنا هذه الوظائف لك:", jobs: jobs };
+    }
+
+    return { text: result.text || "" };
+  } catch (error) {
+    console.error("Smart Search Error:", error);
+    return { text: "عذراً، حدث خطأ أثناء البحث عن الوظائف." };
+  }
+};
+
 export const getCareerSuggestions = async (user: SelfAwarenessData): Promise<CareerSuggestion[]> => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: MODEL_NAME,
       contents: `Analyze this user profile deeply and suggest the top 4 career paths suitable for them in the context of Saudi Vision 2030 and MENA market.
 
       User Profile:
@@ -100,7 +192,7 @@ export const analyzeMarket = async (field: string, location: string, companies?:
     if (keywords) promptContext += ` Consider these keywords: ${keywords}.`;
 
     const searchResponse = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: MODEL_NAME,
       contents: `${promptContext}
       
       Find specific information on:
@@ -134,7 +226,7 @@ export const analyzeMarket = async (field: string, location: string, companies?:
     }
 
     const formattingResponse = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: MODEL_NAME,
       contents: `Extract market analysis data from the following text and format it into the specified JSON structure.
       
       Text to analyze:
@@ -214,13 +306,38 @@ export const analyzeMarket = async (field: string, location: string, companies?:
 
 export const getJobDetails = async (jobTitle: string): Promise<JobDetailsResponse> => {
   try {
+    // Step 1: Perform Google Search for real-time data
+    const searchResponse = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: `Provide detailed, up-to-date career information for the job title: ${jobTitle} in Saudi Arabia/MENA region context.
+      Search for:
+      - Detailed job description and daily responsibilities.
+      - Accurate monthly salary range in SAR.
+      - Career progression path.
+      - Required hard and soft skills.
+      - Recommended education and certifications.
+      - Top courses and learning resources.
+      `,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const searchResultText = searchResponse.text || "";
+
+    // Step 2: Format the search result into JSON
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Provide detailed career information for the job title: ${jobTitle} in Saudi Arabia/MENA region context.
+      model: MODEL_NAME,
+      contents: `Extract job details from the following text and format as JSON.
+      
+      Text to analyze:
+      """
+      ${searchResultText}
+      """
       
       Return a JSON object with:
       - description: A brief and engaging description of the role.
-      - salaryRange: Average monthly salary range in SAR.
+      - salaryRange: Average monthly salary range in SAR (e.g. "10,000 - 15,000 SAR").
       - tasks: Array of 5-7 daily responsibilities.
       - careerPath: Array of job titles showing progression (Entry to Senior).
       - hardSkills: Array of technical skills.
@@ -284,7 +401,7 @@ export const generateCareerPlan = async (user: SelfAwarenessData, market: Market
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: MODEL_NAME,
       contents,
       config: {
         responseMimeType: "application/json",
@@ -345,7 +462,7 @@ export const generateCareerPlan = async (user: SelfAwarenessData, market: Market
         return JSON.parse(repairedJson);
     }
   } catch (error: any) {
-    console.error("Gemini 2.5 Flash failed:", error);
+    console.error("Gemini failed:", error);
     throw new Error("فشل في إنشاء الخطة المهنية. يرجى المحاولة لاحقاً.");
   }
 };
@@ -355,7 +472,7 @@ export const generateCareerPlan = async (user: SelfAwarenessData, market: Market
 export const analyzeResume = async (fileBase64: string, targetJob: string): Promise<ResumeAnalysisResult> => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: MODEL_NAME,
       contents: [
         {
           inlineData: {
@@ -415,7 +532,7 @@ export const getInterviewQuestion = async (history: {role: string, text: string}
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: MODEL_NAME,
       contents: prompt,
     });
     
@@ -433,7 +550,7 @@ export const generateLinkedInContent = async (type: 'bio' | 'post', details: str
       : `Write an engaging LinkedIn Post about: "${details}". Tone: ${tone}. Include hashtags and emojis. In Arabic.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: MODEL_NAME,
       contents: prompt,
     });
     

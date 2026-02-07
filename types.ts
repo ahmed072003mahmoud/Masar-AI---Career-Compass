@@ -154,3 +154,15 @@ export interface ChatMessage {
 }
 
 export type LinkedInContentType = 'bio' | 'post' | 'connection_request';
+
+export interface JobListing {
+  id: string;
+  title: string;
+  company: { display_name: string };
+  location: { display_name: string };
+  description: string;
+  redirect_url: string;
+  created: string;
+  salary_min?: number;
+  salary_max?: number;
+}
