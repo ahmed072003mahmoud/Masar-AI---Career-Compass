@@ -4,7 +4,9 @@ import { SelfAwarenessData, MarketData, CareerSuggestion, MarketAnalysisResult, 
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const MODEL_NAME = "gemini-3-flash-preview";
+// Models configuration
+const MODEL_FLASH = "gemini-3-flash-preview"; // Best for Search Grounding & Tools
+const MODEL_PRO = "gemini-3-pro-preview";     // Best for Thinking & Complex Reasoning
 
 export interface JobDetailsResponse {
   description: string;
@@ -107,7 +109,7 @@ const adzunaToolDeclaration: FunctionDeclaration = {
 export const searchJobsSmart = async (userQuery: string): Promise<{ text: string, jobs?: JobListing[] }> => {
   try {
     const chat = ai.chats.create({
-      model: MODEL_NAME,
+      model: MODEL_FLASH, // Tool calling is faster on Flash
       config: {
         tools: [{ functionDeclarations: [adzunaToolDeclaration] }],
         systemInstruction: "You are a helpful career assistant. When asked about jobs, use the search_adzuna_jobs tool. If the user doesn't specify location, infer it or default to Saudi Arabia. After getting results, summarize the top 3 opportunities briefly in Arabic. If no tool is needed, just answer normally."
@@ -144,8 +146,9 @@ export const searchJobsSmart = async (userQuery: string): Promise<{ text: string
 
 export const getCareerSuggestions = async (user: SelfAwarenessData): Promise<CareerSuggestion[]> => {
   try {
+    // USE MODEL_PRO WITH THINKING FOR DEEP ANALYSIS
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: MODEL_PRO,
       contents: `Analyze this user profile deeply and suggest the top 4 career paths suitable for them in the context of Saudi Vision 2030 and MENA market.
 
       User Profile:
@@ -158,6 +161,7 @@ export const getCareerSuggestions = async (user: SelfAwarenessData): Promise<Car
       Return a JSON array of 4 objects.
       `,
       config: {
+        thinkingConfig: { thinkingBudget: 32768 }, // Enable Thinking Mode
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -186,13 +190,14 @@ export const getCareerSuggestions = async (user: SelfAwarenessData): Promise<Car
 
 export const analyzeMarket = async (field: string, location: string, companies?: string, keywords?: string, industry?: string, companySize?: string): Promise<MarketAnalysisResult> => {
   try {
+    // USE MODEL_FLASH WITH GOOGLE SEARCH FOR REAL-TIME DATA
     let promptContext = `Conduct a real-time market analysis for "${field}" in "${location}" for the year 2024/2025.`;
     if (companies) promptContext += ` Focus on these target companies: ${companies}.`;
     if (industry) promptContext += ` Within the ${industry} industry.`;
     if (keywords) promptContext += ` Consider these keywords: ${keywords}.`;
 
     const searchResponse = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: MODEL_FLASH,
       contents: `${promptContext}
       
       Find specific information on:
@@ -205,7 +210,7 @@ export const analyzeMarket = async (field: string, location: string, companies?:
       
       Provide a comprehensive text report.`,
       config: {
-        tools: [{ googleSearch: {} }],
+        tools: [{ googleSearch: {} }], // Enable Google Search Grounding
       },
     });
 
@@ -225,8 +230,9 @@ export const analyzeMarket = async (field: string, location: string, companies?:
       });
     }
 
+    // Extraction step doesn't need thinking, simple extraction
     const formattingResponse = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: MODEL_FLASH,
       contents: `Extract market analysis data from the following text and format it into the specified JSON structure.
       
       Text to analyze:
@@ -306,9 +312,9 @@ export const analyzeMarket = async (field: string, location: string, companies?:
 
 export const getJobDetails = async (jobTitle: string): Promise<JobDetailsResponse> => {
   try {
-    // Step 1: Perform Google Search for real-time data
+    // Step 1: Perform Google Search for real-time data using MODEL_FLASH
     const searchResponse = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: MODEL_FLASH,
       contents: `Provide detailed, up-to-date career information for the job title: ${jobTitle} in Saudi Arabia/MENA region context.
       Search for:
       - Detailed job description and daily responsibilities.
@@ -319,7 +325,7 @@ export const getJobDetails = async (jobTitle: string): Promise<JobDetailsRespons
       - Top courses and learning resources.
       `,
       config: {
-        tools: [{ googleSearch: {} }],
+        tools: [{ googleSearch: {} }], // Enable Google Search Grounding
       },
     });
 
@@ -327,7 +333,7 @@ export const getJobDetails = async (jobTitle: string): Promise<JobDetailsRespons
 
     // Step 2: Format the search result into JSON
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: MODEL_FLASH,
       contents: `Extract job details from the following text and format as JSON.
       
       Text to analyze:
@@ -384,26 +390,34 @@ export const getJobDetails = async (jobTitle: string): Promise<JobDetailsRespons
 };
 
 export const generateCareerPlan = async (user: SelfAwarenessData, market: MarketData, marketAnalysis: MarketAnalysisResult): Promise<GeneratedPlanData> => {
-  const contents = `Create a structured career roadmap.
-      User: ${user.name}, ${user.currentRole}, ${user.experienceYears}.
-      Target: ${market.field} in ${market.location}.
-      Market Context: Growth ${marketAnalysis.growthRate}, Competition ${marketAnalysis.competitionLevel}.
+  const contents = `Act as a Senior Career Strategist. Create a detailed, actionable Career Roadmap for the user.
+      
+      User Profile:
+      - Name: ${user.name}
+      - Current Role: ${user.currentRole} (${user.experienceYears} experience)
+      - Skills: ${user.skills}
+      
+      Target Goal:
+      - Field: ${market.field} in ${market.location}
+      - Market Context: ${marketAnalysis.growthRate} growth, ${marketAnalysis.competitionLevel} competition.
 
-      Return JSON:
-      1. markdownPlan: Detailed narrative.
-      2. timeline: Array {phaseName, duration, focus, milestones[]}.
-      3. skillTree: Array {name, type(hard/soft), importance, level}.
-      4. risks: Array {risk, impact, mitigation}.
-      5. resources: Array {title, type, description}.
-      6. actionPlan: {shortTerm[], mediumTerm[]}.
-      7. networkingStrategy: {targetPeople, approachMethod, suggestedPlatforms[]}.
+      Requirements:
+      1. Divide the plan into distinct phases (e.g., Foundation, Growth, Mastery).
+      2. For each phase, include "Practical Projects" to build a portfolio.
+      3. Suggest specific technical skills and exactly where to learn them (Resources).
+      4. Provide a concrete Action Plan (Short-term vs Medium-term).
+      5. Identify Risks and Mitigation strategies.
+
+      Return JSON matching the schema below.
       `;
 
   try {
+    // USE MODEL_PRO WITH THINKING FOR COMPLEX PLANNING
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: MODEL_PRO,
       contents,
       config: {
+        thinkingConfig: { thinkingBudget: 32768 }, // Enable Thinking Mode for Plans
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -471,8 +485,10 @@ export const generateCareerPlan = async (user: SelfAwarenessData, market: Market
 
 export const analyzeResume = async (fileBase64: string, targetJob: string): Promise<ResumeAnalysisResult> => {
   try {
+    // USE MODEL_PRO WITH THINKING FOR CRITICAL ANALYSIS
+    // Updated prompt to be more detailed based on user requirements (ATS Persona)
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: MODEL_PRO,
       contents: [
         {
           inlineData: {
@@ -481,16 +497,22 @@ export const analyzeResume = async (fileBase64: string, targetJob: string): Prom
           }
         },
         {
-          text: `Analyze this resume for the role of "${targetJob}". 
-          Provide a structured critique in Arabic including:
-          1. ATS Match Score (0-100).
-          2. Top Strengths.
-          3. Weaknesses.
-          4. Missing Keywords that are crucial for this role (ATS keywords).
-          5. Specific Improvement Tips.`
+          text: `Act as a skilled ATS (Applicant Tracking System) scanner with a deep understanding of tech recruitment. 
+          Evaluate the resume against the job description for the role of "${targetJob}".
+          
+          Output the result as a valid JSON string with the following keys:
+          - "matchScore": (integer between 0-100, representing match_percentage)
+          - "missingKeywords": (list of strings, specific missing keywords)
+          - "summary": (concise feedback text in Arabic)
+          - "strengths": (list of strings in Arabic)
+          - "weaknesses": (list of strings in Arabic)
+          - "improvementTips": (list of actionable tips in Arabic)
+          
+          Do NOT output any markdown formatting, just the raw JSON string.`
         }
       ],
       config: {
+        thinkingConfig: { thinkingBudget: 32768 }, // Enable Thinking Mode for deep analysis
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -507,7 +529,9 @@ export const analyzeResume = async (fileBase64: string, targetJob: string): Prom
       }
     });
 
-    return JSON.parse(response.text || "{}");
+    const jsonText = response.text || "{}";
+    // Using repairJson to ensure robust parsing as requested
+    return JSON.parse(repairJson(jsonText));
   } catch (error) {
     console.error("Resume analysis failed:", error);
     throw new Error("فشل في تحليل السيرة الذاتية");
@@ -516,27 +540,37 @@ export const analyzeResume = async (fileBase64: string, targetJob: string): Prom
 
 export const getInterviewQuestion = async (history: {role: string, text: string}[], jobTitle: string): Promise<string> => {
   try {
-    // Construct chat history for context
-    let prompt = `You are an expert HR Recruiter conducting a mock interview for the position of "${jobTitle}".
-    Your goal is to assess the candidate's skills, cultural fit, and problem-solving abilities.
+    // Split history into previous turns and the current message to trigger the model
+    // The last element in `history` is the user's latest reply (or empty if start)
+    const previousHistory = history.slice(0, -1).map(msg => ({
+      role: msg.role === 'model' ? 'model' : 'user',
+      parts: [{ text: msg.text }],
+    }));
     
-    Current state of interview:
-    ${history.map(m => `${m.role === 'model' ? 'Recruiter' : 'Candidate'}: ${m.text}`).join('\n')}
-    
-    Task:
-    - If this is the start, ask a welcoming opening question (e.g., "Tell me about yourself").
-    - If the candidate just answered, briefly acknowledge their answer (give constructive feedback if it was weak) and ask the NEXT relevant question.
-    - Keep questions professional but conversational.
-    - Ask only ONE question at a time.
-    - Output ONLY the recruiter's response text.
-    `;
+    // If history is empty, it's the start.
+    // If not, the last item is the user's input we want to send to the chat session.
+    const lastItem = history[history.length - 1];
+    const messageToSend = lastItem ? lastItem.text : "Start the interview. Ask me the first question.";
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
+    const chat = ai.chats.create({
+      model: MODEL_FLASH, 
+      history: previousHistory,
+      config: {
+        systemInstruction: `You are an expert HR Recruiter conducting a mock interview for the position of "${jobTitle}".
+        Your goal is to assess the candidate's skills, cultural fit, and problem-solving abilities.
+        
+        Guidelines:
+        - If this is the start, ask a welcoming opening question (e.g., "Tell me about yourself").
+        - If the candidate just answered, briefly acknowledge their answer (give constructive feedback if it was weak) and ask the NEXT relevant question.
+        - Keep questions professional but conversational.
+        - Ask only ONE question at a time.
+        - Speak in Arabic (or English if the job title suggests an English-only role, but default to Arabic for this app).`
+      }
     });
+
+    const result = await chat.sendMessage({ message: messageToSend });
     
-    return response.text || "Could not generate question.";
+    return result.text || "Could not generate question.";
   } catch (error) {
     console.error("Interview generation failed:", error);
     return "حدث خطأ في النظام. هل يمكننا الانتقال للسؤال التالي؟";
@@ -546,17 +580,69 @@ export const getInterviewQuestion = async (history: {role: string, text: string}
 export const generateLinkedInContent = async (type: 'bio' | 'post', details: string, tone: string = 'Professional'): Promise<string> => {
   try {
     const prompt = type === 'bio' 
-      ? `Write a professional LinkedIn Headline and About section based on these details: "${details}". Tone: ${tone}. In Arabic (with English technical terms if needed).`
-      : `Write an engaging LinkedIn Post about: "${details}". Tone: ${tone}. Include hashtags and emojis. In Arabic.`;
+      ? `Act as a Top-tier LinkedIn Personal Branding Expert. Write a high-impact LinkedIn Headline and About section for a client based on: "${details}".
+      
+      Tone: ${tone}.
+      
+      Requirements:
+      1. Headline: Catchy, value-driven, keywords-optimized (max 220 chars).
+      2. About Section: Storytelling approach (Hook -> Struggle/Journey -> Achievement -> Call to Action).
+      3. Language: Arabic (with English technical terms where appropriate).
+      4. Format: Use bullet points and spacing for readability.
+      `
+      : `Act as a Viral Content Creator on LinkedIn. Write an engaging post about: "${details}".
+      
+      Tone: ${tone}.
+      
+      Requirements:
+      1. Structure: Strong Hook (question or bold statement) -> Value/Story -> Takeaway -> CTA.
+      2. Formatting: Use short paragraphs (1-2 sentences).
+      3. Engagement: Ask a question at the end.
+      4. Hashtags: Include 3-5 relevant hashtags.
+      5. Language: Arabic.
+      `;
 
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: MODEL_PRO, // Use Pro for higher quality creative writing
       contents: prompt,
+      config: {
+        thinkingConfig: { thinkingBudget: 16000 }, // Thinking for creative strategy
+      }
     });
     
     return response.text || "";
   } catch (error) {
     console.error("LinkedIn generation failed:", error);
     throw new Error("فشل في توليد المحتوى");
+  }
+};
+
+export const generateLearningRoadmap = async (role: string, level: string): Promise<string> => {
+  try {
+    const prompt = `Create a comprehensive learning roadmap for a '${role}' for someone at '${level}' level.
+    The response must be in Arabic.
+    
+    Structure the roadmap into phases (e.g., Phase 1: Foundations, Phase 2: Advanced Concepts, etc.).
+    For each phase include:
+    - Duration
+    - Key Topics
+    - Recommended Resources (Online courses, Books)
+    - Practical Project idea to validate skills.
+    
+    Format the output as a clean Markdown table or structured Markdown text with clear headings.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_PRO,
+      contents: prompt,
+      config: {
+        thinkingConfig: { thinkingBudget: 16000 },
+      }
+    });
+
+    return response.text || "فشل في إنشاء خارطة الطريق.";
+  } catch (error) {
+    console.error("Roadmap generation failed:", error);
+    throw new Error("فشل في إنشاء خارطة الطريق");
   }
 };

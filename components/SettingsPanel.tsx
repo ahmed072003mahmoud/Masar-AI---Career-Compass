@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -17,6 +18,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
       window.location.reload();
     }
   };
+
+  // Check for required keys (safely for client-side)
+  const keys = {
+    gemini: !!process.env.API_KEY,
+    adzuna: !!(process.env.VITE_ADZUNA_APP_ID && process.env.VITE_ADZUNA_APP_KEY),
+    rapidapi: !!process.env.RAPIDAPI_KEY,
+  };
+
+  const StatusDot = ({ active }: { active: boolean }) => (
+    <span className={`w-2.5 h-2.5 rounded-full ${active ? 'bg-green-500 shadow-sm shadow-green-500/50' : 'bg-red-500 shadow-sm shadow-red-500/50'}`}></span>
+  );
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end">
@@ -43,6 +55,32 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
         </div>
 
         <div className="space-y-8">
+          {/* System Health Section (New) */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">حالة النظام</h3>
+            <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+               <div className="space-y-3">
+                 <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-300">Google Gemini AI</span>
+                    <StatusDot active={keys.gemini} />
+                 </div>
+                 <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-300">Adzuna Jobs API</span>
+                    <StatusDot active={keys.adzuna} />
+                 </div>
+                 <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-300">LinkedIn RapidAPI</span>
+                    <StatusDot active={keys.rapidapi} />
+                 </div>
+               </div>
+               {!keys.gemini && (
+                 <p className="text-[10px] text-red-500 mt-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    ⚠️ API_KEY مفقود. لن يعمل الذكاء الاصطناعي.
+                 </p>
+               )}
+            </div>
+          </section>
+
           {/* Theme Section */}
           <section>
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">المظهر</h3>
@@ -87,7 +125,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
 
           <div className="pt-6 border-t border-slate-100 dark:border-slate-700">
              <p className="text-xs text-center text-slate-400">
-               Masar AI v2.5
+               Masar AI v2.5.1
              </p>
           </div>
         </div>
