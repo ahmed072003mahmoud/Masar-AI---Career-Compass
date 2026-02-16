@@ -1,7 +1,4 @@
 
-
-/* index.css */
-
 @import 'aos/dist/aos.css';
 
 @tailwind base;
@@ -10,256 +7,72 @@
 
 /* تحسينات للنصوص العربية */
 .arabic-text {
-  line-height: 1.8;
-  letter-spacing: -0.01em;
-  word-spacing: 0.1em;
+  font-family: 'Tajawal', sans-serif;
+  line-height: 1.6;
+  direction: rtl;
 }
 
 /* تخصيص شريط التمرير */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.05);
-}
-
-.dark ::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.05);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.5);
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: content-box;
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(124, 58, 237, 0.6);
-  border: 2px solid transparent;
-  background-clip: content-box;
+  background: #94a3b8;
 }
 
-/* --- تأثيرات خلفية متقدمة (Background Effects) --- */
-
-/* شبكة متحركة */
-.bg-grid-pattern {
-  background-size: 40px 40px;
-  background-image: 
-    linear-gradient(to right, rgba(139, 92, 246, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
-  mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
-  -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
-  animation: gridMove 60s linear infinite;
-  will-change: background-position;
+/* تصميم البطاقات الموحد (Product Style) */
+.product-card {
+    background-color: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.05);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.dark .bg-grid-pattern {
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+.dark .product-card {
+    background-color: #1f2937;
+    border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
 }
 
-@keyframes gridMove {
-  0% { background-position: 0 0; }
-  100% { background-position: 40px 40px; }
+.product-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.08);
 }
 
-/* --- تأثيرات بصرية متقدمة (Advanced Visual Effects) --- */
-
-/* 1. Glassmorphism متقدم */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+/* تأثيرات الزر الأزرق الاحترافي */
+.btn-blue-gradient {
+    background: linear-gradient(90deg, #4A90E2 0%, #0072ff 100%);
+    color: white;
+    border: none;
+    font-weight: 700;
+    transition: all 0.3s ease;
 }
 
-.dark .glass-panel {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+.btn-blue-gradient:hover {
+    box-shadow: 0 8px 20px rgba(74, 144, 226, 0.3);
+    transform: scale(1.02);
 }
 
-/* 2. تدرجات نصية متحركة */
-.text-gradient-animated {
-  background: linear-gradient(-45deg, #7c3aed, #c026d3, #4f46e5, #7c3aed);
-  background-size: 300% 300%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: gradient-flow 6s ease infinite;
-  will-change: background-position;
+/* تأثير التوهج للتحميل */
+.loading-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
 }
 
-@keyframes gradient-flow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-/* 3. تأثيرات الطفو (Floating) */
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-  will-change: transform;
-}
-
-.animate-float-delayed {
-  animation: float 6s ease-in-out infinite;
-  animation-delay: 3s;
-  will-change: transform;
-}
-
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-15px); }
-  100% { transform: translateY(0px); }
-}
-
-/* 4. تأثير التموج (Ripple) عند النقر */
-.ripple-btn {
-  position: relative;
-  overflow: hidden;
-  transform: translateZ(0); /* Hardware acceleration */
-}
-
-.ripple-btn::after {
-  content: "";
-  display: block;
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.7) 10%, transparent 10.01%);
-  background-repeat: no-repeat;
-  background-position: 50%;
-  transform: scale(10, 10);
-  opacity: 0;
-  transition: transform .5s, opacity 1s;
-}
-
-.ripple-btn:active::after {
-  transform: scale(0, 0);
-  opacity: 0.3;
-  transition: 0s;
-}
-
-/* تأثيرات الظلال الحيوية */
-.shadow-vivid {
-  box-shadow: 0 10px 40px -10px rgba(124, 58, 237, 0.25);
-}
-
-.hover\:shadow-vivid-hover:hover {
-  box-shadow: 0 20px 50px -12px rgba(124, 58, 237, 0.4);
-}
-
-/* Accessibility Tools Classes */
-.text-large {
-  font-size: 1.15em !important;
-}
-
-.text-huge {
-  font-size: 1.3em !important;
-}
-
-.high-contrast {
-  filter: contrast(1.3);
-}
-
-.high-contrast .glass-panel {
-  background: white !important;
-  border: 2px solid black !important;
-  backdrop-filter: none !important;
-}
-
-.dark .high-contrast .glass-panel {
-  background: black !important;
-  border: 2px solid white !important;
-}
-
-.stop-animations *, 
-.stop-animations ::before, 
-.stop-animations ::after {
-  animation: none !important;
-  transition: none !important;
-  scroll-behavior: auto !important;
-}
-
-/* --- إمكانية الوصول (Accessibility) --- */
-
-/* دعم تقليل الحركة */
-@media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-  
-  .bg-grid-pattern, .animate-float, .animate-blob {
-    animation: none !important;
-  }
-}
-
-/* تحسين تركيز لوحة المفاتيح */
-:focus-visible {
-  outline: 3px solid #a78bfa;
-  outline-offset: 2px;
-}
-
-/* --- تحسينات الطباعة (Print Styles) --- */
-@media print {
-  body {
-    background: white !important;
-    color: black !important;
-    font-size: 12pt;
-  }
-  
-  .no-print, 
-  header, 
-  button:not(.print-visible), 
-  .fixed,
-  [data-aos] {
-    display: none !important;
-  }
-
-  /* تحسين تنسيق البطاقات للطباعة */
-  .shadow-2xl, .shadow-xl, .shadow-lg, .shadow-md, .shadow-sm {
-    box-shadow: none !important;
-  }
-
-  .border {
-    border-color: #cbd5e1 !important;
-  }
-
-  /* ضمان فواصل الصفحات */
-  .page-break-after {
-    page-break-after: always;
-  }
-  
-  .page-break-before {
-    page-break-before: always;
-  }
-  
-  .break-inside-avoid {
-    break-inside: avoid;
-  }
-
-  /* توسيع المحتوى */
-  main {
-    max-width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* إظهار الروابط عند الطباعة */
-  a[href^="http"]:after {
-    content: " (" attr(href) ")";
-    font-size: 0.8em;
-    color: #64748b;
-  }
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
